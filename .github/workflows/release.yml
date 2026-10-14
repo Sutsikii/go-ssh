@@ -1,0 +1,44 @@
+name: Release
+
+# Pushing a tag v<version> (the version of mygo.json) builds the Windows app
+# and installer, signs the update with MYGO_UPDATER_PRIVATE_KEY and publishes
+# them as a GitHub release, where installed apps find their updates.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the release, and the uploads to it
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the version
+        run: test "$GITHUB_REF_NAME" = "v$(jq -r .version mygo.json)"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install NSIS, for the installer
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Test
+        run: CGO_ENABLED=0 go test ./...
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "gossh $GITHUB_REF_NAME" \
+              --notes "$(awk '/^## /{n++} n==1 && !/^## /' CHANGELOG.md)"
+          fi
+      - name: Build and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go tool mygo build -platform windows/amd64 -upload
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false

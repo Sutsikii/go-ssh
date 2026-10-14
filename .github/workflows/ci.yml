@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Vet
+        shell: bash
+        run: |
+          go vet ./...
+          GOOS=linux go vet ./...
+          GOOS=darwin go build ./...
+      - name: Test
+        shell: bash
+        run: CGO_ENABLED=0 go test ./...
+      - name: Check the page's scripts
+        if: runner.os == 'Linux'
+        run: for f in web/*.js; do node --check "$f"; done
