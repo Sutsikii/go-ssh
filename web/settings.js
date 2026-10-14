@@ -199,6 +199,19 @@ function newSettingsTab() {
   q(".s-sshconfig").onclick = () => importSSHConfig();
   q(".s-open").onclick = () => go("App.OpenDataDir");
 
+  const showUpdates = (u) => {
+    q(".s-update-off").hidden = u.enabled;
+    for (const s of [".s-auto-check", ".s-auto-install", ".s-check-updates"]) q(s).disabled = !u.enabled;
+    q(".s-auto-check").checked = u.automaticChecks;
+    q(".s-auto-install").checked = u.automaticDownloads;
+    const t = new Date(u.lastCheck);
+    q(".s-last-check").textContent = u.enabled && t.getFullYear() > 2000 ? `Dernière vérification ${agoText(t)}` : "";
+  };
+  const setUpdates = () => go("App.SetUpdates", q(".s-auto-check").checked, q(".s-auto-install").checked).then(showUpdates, (e) => toast(errText(e), true));
+  q(".s-auto-check").onchange = setUpdates;
+  q(".s-auto-install").onchange = setUpdates;
+  q(".s-check-updates").onclick = () => go("App.CheckForUpdates");
+
   tab.render = async () => {
     const info = state.settings;
     if (!info) return;
@@ -217,6 +230,7 @@ function newSettingsTab() {
       info.platform === "windows"
         ? "Les mots de passe sont chiffrés avec DPAPI : seul ce compte Windows, sur ce PC, peut les relire."
         : "Les mots de passe sont dans servers.json, lisible par ce seul utilisateur. Préférer les clés et l'agent SSH.";
+    go("App.Updates").then(showUpdates, () => {});
     const known = await go("Monitor.KnownHosts");
     q(".s-known").innerHTML = known.length
       ? `<div class="known">${known.map((k) => `<div><b>${esc(k.hosts)}</b><span>${esc(k.type)} ${esc(k.fingerprint)}</span></div>`).join("")}</div>`

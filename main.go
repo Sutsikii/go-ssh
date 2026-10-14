@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 )
 
 // automate drives the window in development builds (automate.go).
@@ -20,6 +21,7 @@ var web embed.FS
 func main() {
 	app := mygo.App
 	app.SetName("gossh")
+	mygo.Use(updater.Plugin)
 
 	dir, err := app.Path(mygo.PathUserData)
 	if err != nil {
