@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gossh</title>
+  <link rel="stylesheet" href="vendor/xterm.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <img class="logo" src="logo.png" alt="" />
+      <div><b>gossh</b><small id="brand-stats"></small></div>
+    </div>
+    <button id="quick" class="quick" title="Ctrl+K">
+      <span class="quick-icon"></span><span>Se connecter…</span><kbd>Ctrl K</kbd>
+    </button>
+    <nav id="views" class="nav"></nav>
+    <div class="section-head">
+      <span>Groupes</span>
+      <button id="new-group" class="icon-btn" title="Nouveau groupe" aria-label="Nouveau groupe"></button>
+    </div>
+    <nav id="groups" class="nav groups"></nav>
+    <nav id="tools" class="nav sidebar-foot"></nav>
+  </aside>
+
+  <main class="main">
+    <div class="tabbar">
+      <div id="tabs" class="tabs" role="tablist"></div>
+      <div class="tabbar-tools">
+        <button id="tile-toggle" class="icon-btn" title="Mosaïque des terminaux (Ctrl+Maj+M)" aria-label="Mosaïque"></button>
+        <button id="broadcast-toggle" class="icon-btn" title="Diffuser la saisie à tous les terminaux (Ctrl+Maj+B)" aria-label="Diffuser la saisie"></button>
+        <button id="new-tab" class="icon-btn" title="Nouveau terminal (Ctrl+T)" aria-label="Nouveau terminal"></button>
+      </div>
+    </div>
+    <div id="broadcast-bar" class="broadcast-bar" hidden></div>
+    <div id="panes" class="panes"></div>
+  </main>
+
+  <!-- Templates of the tabs' contents -->
+  <template id="tpl-home">
+    <section class="pane home">
+      <div class="toolbar">
+        <h1 class="home-title">Serveurs</h1>
+        <div class="spacer"></div>
+        <div class="search"><input class="home-search" type="search" placeholder="Rechercher (nom, IP, tag…)" /></div>
+        <div class="segmented state-filter" role="radiogroup" aria-label="État">
+          <button data-state="" class="on">Tous</button>
+          <button data-state="online">En ligne</button>
+          <button data-state="down">Hors ligne</button>
+        </div>
+        <div class="segmented layout-switch" role="radiogroup" aria-label="Affichage">
+          <button data-layout="cards" title="Cartes"></button>
+          <button data-layout="list" title="Liste"></button>
+        </div>
+        <button class="primary add-server">Ajouter</button>
+      </div>
+      <div class="overview"></div>
+      <div class="notice" hidden></div>
+      <div class="server-grid"></div>
+      <div class="server-list" hidden></div>
+      <div class="empty" hidden></div>
+      <div class="selection-bar" hidden></div>
+    </section>
+  </template>
+
+  <template id="tpl-detail">
+    <section class="pane detail">
+      <div class="detail-main">
+        <div class="crumbs"></div>
+        <header class="detail-head">
+          <div class="host-icon"><i class="dot"></i></div>
+          <div class="detail-title">
+            <h1 class="d-name"></h1>
+            <div class="d-sub muted"></div>
+          </div>
+          <div class="spacer"></div>
+          <span class="d-seen muted"></span>
+          <span class="live-pill"><i></i><span>Live</span></span>
+          <div class="segmented range" role="radiogroup" aria-label="Période">
+            <button data-range="300">5m</button>
+            <button data-range="900">15m</button>
+            <button data-range="3600" class="on">1h</button>
+          </div>
+        </header>
+        <div class="d-alert" hidden></div>
+        <div class="charts"></div>
+      </div>
+      <aside class="detail-side"></aside>
+    </section>
+  </template>
+
+  <template id="tpl-term">
+    <section class="pane term">
+      <div class="term-head">
+        <i class="dot"></i>
+        <b class="t-name"></b>
+        <span class="t-addr muted"></span>
+        <div class="spacer"></div>
+        <span class="t-state muted"></span>
+        <button class="icon-btn t-find" title="Rechercher (Ctrl+Maj+F)"></button>
+        <button class="icon-btn t-stats" title="Statistiques"></button>
+        <button class="icon-btn t-reconnect" title="Reconnecter"></button>
+      </div>
+      <div class="term-find" hidden><input type="text" placeholder="Rechercher dans le terminal" /><button class="ghost t-find-prev">Préc.</button><button class="ghost t-find-next">Suiv.</button></div>
+      <div class="term-body"></div>
+    </section>
+  </template>
+
+  <template id="tpl-bulk">
+    <section class="pane bulk">
+      <div class="bulk-left">
+        <h1>Commandes groupées</h1>
+        <p class="muted">Lancer une commande sur plusieurs serveurs en parallèle.</p>
+        <div class="field-label">Serveurs <span class="b-count muted"></span></div>
+        <div class="b-picker">
+          <div class="b-picker-tools">
+            <input type="search" class="b-filter" placeholder="Filtrer" />
+            <select class="b-group" aria-label="Groupe"></select>
+            <button class="ghost b-all">Tout</button>
+            <button class="ghost b-none">Aucun</button>
+          </div>
+          <div class="b-targets"></div>
+        </div>
+        <div class="field-label">Commande</div>
+        <textarea class="b-cmd mono" rows="5" spellcheck="false" placeholder="uptime && df -h /"></textarea>
+        <div class="b-presets"></div>
+        <div class="b-run-row">
+          <label class="b-par muted">Parallèle <input type="number" class="b-parallel" min="1" max="64" value="16" /></label>
+          <div class="spacer"></div>
+          <button class="ghost b-stop" hidden>Arrêter</button>
+          <button class="primary b-run">Lancer <kbd>Ctrl ↵</kbd></button>
+        </div>
+      </div>
+      <div class="bulk-right">
+        <div class="b-summary"></div>
+        <div class="b-results"></div>
+      </div>
+    </section>
+  </template>
+
+  <template id="tpl-settings">
+    <section class="pane settings-page">
+      <div class="settings-inner">
+        <h1>Paramètres</h1>
+
+        <section class="panel">
+          <h2>Apparence</h2>
+          <div class="themes" role="radiogroup" aria-label="Thème"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Terminal</h2>
+          <label class="row-field">Taille du texte <input type="range" class="s-font" min="10" max="22" step="1" /> <span class="s-font-v muted"></span></label>
+          <label class="row-field">Police <select class="s-family">
+            <option value='"Cascadia Mono", Consolas, monospace'>Cascadia Mono</option>
+            <option value='"JetBrains Mono", "Cascadia Mono", monospace'>JetBrains Mono</option>
+            <option value='Consolas, monospace'>Consolas</option>
+            <option value='"Fira Code", "Cascadia Mono", monospace'>Fira Code</option>
+          </select></label>
+          <label class="check-row"><input type="checkbox" class="s-copy" /> Copier la sélection automatiquement</label>
+          <label class="check-row"><input type="checkbox" class="s-bell" /> Signal sonore</label>
+          <p class="muted small">Clic droit : copier la sélection, sinon coller. Ctrl+Maj+C / Ctrl+Maj+V aussi.</p>
+        </section>
+
+        <section class="panel">
+          <h2>Statistiques</h2>
+          <p class="muted">Relevées par SSH dans /proc, sans rien installer sur les serveurs. Une heure d'historique est gardée en mémoire.</p>
+          <label class="row-field">Toutes les <input type="number" class="s-interval" min="2" max="300" /> secondes</label>
+        </section>
+
+        <section class="panel">
+          <h2>Serveurs</h2>
+          <p class="muted">Exporter écrit un .json sans les mots de passe. Importer accepte un export gossh ou un fichier de configuration OpenSSH.</p>
+          <div class="settings-row">
+            <button class="s-export">Exporter</button>
+            <button class="s-import">Importer un fichier</button>
+            <button class="s-sshconfig">Importer ~/.ssh/config</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Clés d'hôtes approuvées</h2>
+          <div class="s-known"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Données</h2>
+          <p class="muted s-secret-note"></p>
+          <dl class="meta">
+            <dt>Dossier</dt><dd><span class="path s-dir"></span></dd>
+            <dt>Version</dt><dd class="s-version"></dd>
+          </dl>
+          <div class="settings-row"><button class="s-open">Ouvrir le dossier</button></div>
+        </section>
+
+        <section class="panel">
+          <h2>Raccourcis</h2>
+          <dl class="meta keys">
+            <dt><kbd>Ctrl K</kbd> / <kbd>Ctrl T</kbd></dt><dd>Se connecter à un serveur</dd>
+            <dt><kbd>Ctrl Maj W</kbd></dt><dd>Fermer l'onglet</dd>
+            <dt><kbd>Ctrl Tab</kbd></dt><dd>Onglet suivant (Maj : précédent)</dd>
+            <dt><kbd>Ctrl 1…9</kbd></dt><dd>Aller à l'onglet</dd>
+            <dt><kbd>Ctrl Maj M</kbd></dt><dd>Mosaïque des terminaux</dd>
+            <dt><kbd>Ctrl Maj B</kbd></dt><dd>Diffuser la saisie</dd>
+            <dt><kbd>Ctrl Maj F</kbd></dt><dd>Rechercher dans le terminal</dd>
+            <dt><kbd>Ctrl +</kbd> / <kbd>Ctrl −</kbd></dt><dd>Taille du texte du terminal</dd>
+            <dt><kbd>Ctrl ,</kbd></dt><dd>Paramètres</dd>
+          </dl>
+        </section>
+      </div>
+    </section>
+  </template>
+
+  <!-- Server editor -->
+  <div id="editor" class="dialog" hidden>
+    <form id="editor-form" class="dialog-card wide-card" autocomplete="off">
+      <h2 id="editor-title"></h2>
+      <div class="form-grid">
+        <label class="field">Nom<input name="name" type="text" placeholder="web-prod-1" /></label>
+        <label class="field">Adresse<input name="host" type="text" placeholder="10.0.1.12 ou web.example.com" required /></label>
+        <label class="field">Utilisateur<input name="user" type="text" placeholder="root" /></label>
+        <label class="field">Port<input name="port" type="number" min="1" max="65535" placeholder="22" /></label>
+        <label class="field span2">Clé privée
+          <span class="input-row"><input name="keyPath" type="text" placeholder="Clés par défaut de ~/.ssh et l'agent" /><button type="button" id="editor-key">Parcourir</button></span>
+        </label>
+        <label class="field">Mot de passe<input name="password" type="password" /></label>
+        <label class="field">Phrase de passe de la clé<input name="passphrase" type="password" /></label>
+        <label class="field">Groupe<input name="group" type="text" list="group-list" placeholder="Aucun" /></label>
+        <label class="field">Rebond (ProxyJump)<select name="jumpId"></select></label>
+        <label class="field">Tags<input name="tags" type="text" placeholder="web, nginx (virgules)" /></label>
+        <div class="field">Couleur<div id="editor-colors" class="colors"></div></div>
+        <label class="field span2">Notes<textarea name="notes" rows="2"></textarea></label>
+        <label class="check-row span2"><input name="monitor" type="checkbox" /> Relever les statistiques (CPU, mémoire, disques, réseau)</label>
+      </div>
+      <p id="editor-msg" class="muted small" hidden></p>
+      <div class="dialog-actions three">
+        <button type="button" id="editor-test" class="ghost">Tester</button>
+        <button type="button" id="editor-cancel" class="ghost">Annuler</button>
+        <button type="submit" id="editor-ok" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+  <datalist id="group-list"></datalist>
+
+  <!-- Prompt / confirm -->
+  <div id="dialog" class="dialog" hidden>
+    <form id="dialog-form" class="dialog-card">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-text" class="muted"></p>
+      <input id="dialog-input" type="text" autocomplete="off" />
+      <textarea id="dialog-area" class="mono" rows="8" spellcheck="false"></textarea>
+      <div class="dialog-actions">
+        <button type="button" id="dialog-cancel" class="ghost">Annuler</button>
+        <button type="submit" id="dialog-ok" class="primary">OK</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Quick connect -->
+  <div id="palette" class="palette-wrap" hidden>
+    <div class="palette">
+      <input id="palette-input" type="text" placeholder="Serveur, groupe, tag ou user@hôte:port" autocomplete="off" spellcheck="false" />
+      <div id="palette-list" class="palette-list"></div>
+      <div class="palette-foot muted"><span><kbd>↵</kbd> terminal</span><span><kbd>Maj ↵</kbd> statistiques</span><span><kbd>Échap</kbd> fermer</span></div>
+    </div>
+  </div>
+
+  <div id="menu" class="menu" hidden></div>
+  <div id="toasts" class="toasts"></div>
+
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/addon-fit.js"></script>
+  <script src="vendor/addon-web-links.js"></script>
+  <script src="vendor/addon-search.js"></script>
+  <script src="core.js"></script>
+  <script src="tabs.js"></script>
+  <script src="home.js"></script>
+  <script src="detail.js"></script>
+  <script src="term.js"></script>
+  <script src="bulk.js"></script>
+  <script src="settings.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
