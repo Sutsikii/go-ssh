@@ -1,0 +1,7 @@
+{
+  "name": "gossh",
+  "identifier": "dev.sutsiki.gossh",
+  "version": "0.1.0",
+  "copyright": "© 2026 Sutsiki",
+  "out": "build"
+}
